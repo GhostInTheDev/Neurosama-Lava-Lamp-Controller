@@ -17,7 +17,7 @@ import threading
 # DEVICE CREDENTIALS
 # ===============================================
 DEVICE_ID = "device_id_from_logs"
-LOCAL_KEY = "NDzeP/yOu?>o:8(2"
+LOCAL_KEY = "find-in-logs"
 DEVICE_IP = "your-lamp-ip-here"
 DEVICE_VERSION = 3.5
 
