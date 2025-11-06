@@ -1,0 +1,13 @@
+certifi==2025.10.5
+Cff1==2.0.0
+charset-normalizer==3.4.4
+colorama==0.4.6
+cryptography==46.0.3
+1dna==3.11
+paho-mqtt==2.1.0
+pycparser==2.23
+pycryptodome==3.23.0
+requests==2.32.5
+scapy==2.6.1
+tinytuya==1.17.4
+urllib3==2.5.0
