@@ -26,7 +26,7 @@ def _build_music_scene_string(colors, duration=60):
 
 
 # THE SYNC FUNCTION
-def stream_sync(lamp, duration=None):
+def stream_sync(lamp):
     """
     Activates the single-command 'Stream Sync' mode (ON) or deactivates it (OFF).
     If duration is provided, it runs for that duration, then cleans up.
@@ -52,12 +52,12 @@ def stream_sync(lamp, duration=None):
         print(f"✅ Stream Sync mode activated.")
         
         # Cleanup logic for scheduled runs
-        if duration is not None:
-             time.sleep(duration)
-             lamp.set_music_toggle(False)
-             # CRITICAL FIX: Switch back to a standard mode after disabling toggle
-             lamp.set_mode('colour')
-             print("⏯️  Stream Sync mode toggle deactivated and set back to 'colour' mode.")
+        # if duration is not None:
+        #      time.sleep(duration)
+        #      lamp.set_music_toggle(False)
+        #      # CRITICAL FIX: Switch back to a standard mode after disabling toggle
+        #      lamp.set_mode('colour')
+        #      print("⏯️  Stream Sync mode toggle deactivated and set back to 'colour' mode.")
 
     except Exception as e:
         print(f"❌ Failed to activate sync mode: {e}")

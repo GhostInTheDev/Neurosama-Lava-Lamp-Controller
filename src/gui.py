@@ -45,8 +45,7 @@ def schedule_add():
         elif action == 'off':
             lamp_scheduler.schedule_off(time_str)
         elif action == 'sync':
-            duration = int(data.get('duration', 3600))
-            lamp_scheduler.schedule_sync(time_str, duration)
+            lamp_scheduler.schedule_sync(time_str)
         elif action == 'effect':
             effect_name = data['effect']
             duration = int(data.get('duration', 30))

@@ -4,8 +4,12 @@ const API_BASE = '';
 // Global state to track sync mode status
 let isSyncActive = false;
 
-// NEW: Flag to temporarily ignore status updates to the color picker
-let ignoreNextColorUpdate = false; 
+// Color picker lock mechanism
+const COLOR_LOCK_DURATION_MS = 30000; // 30 seconds
+let colorInputLockUntil = 0;
+
+// Flag to track if initial color has been loaded
+let initialColorLoaded = false; 
 
 // --- Helper Functions ---
 
@@ -66,8 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-set-color').addEventListener('click', () => {
         const color = document.getElementById('color-picker').value;
         const brightness = document.getElementById('brightness-slider').value;
-        // Since the user is explicitly setting, we keep the lock active
-        ignoreNextColorUpdate = true;
+        // Lock color picker updates when user is setting color
+        colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
         setColor(color, brightness);
     });
     document.getElementById('brightness-slider').addEventListener('input', (e) => {
@@ -75,8 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.querySelectorAll('.color-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Set the flag *before* sending the command
-            ignoreNextColorUpdate = true;
+            // Lock color picker updates when user clicks quick color
+            colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
             document.getElementById('color-picker').value = btn.dataset.color;
             const brightness = document.getElementById('brightness-slider').value;
             setColor(btn.dataset.color, brightness);
@@ -106,33 +110,23 @@ function updateScheduleForm() {
     const effectOptions = document.querySelector('.schedule-effect-options');
     const effectNameSelect = document.getElementById('schedule-effect-name');
     
-    // NEW: Duration input elements
+    // Duration input elements
     const durationLabel = document.querySelector('label[for="schedule-duration"]');
     const durationInput = document.getElementById('schedule-duration');
-
 
     // Reset visibility
     colorOptions.style.display = 'none';
     effectOptions.style.display = 'none';
 
-    // Show duration by default, hide it specifically for sync/off
+    // Show duration by default for effects
     durationLabel.style.display = 'block';
     durationInput.style.display = 'block';
-
 
     if (action === 'on') {
         colorOptions.style.display = 'flex';
     } else if (action === 'effect') {
         effectOptions.style.display = 'flex';
-        effectNameSelect.style.display = 'block'; // Show effect dropdown for generic effects
-    } else if (action === 'sync') {
-        // --- CRITICAL CHANGE FOR SYNC ---
-        effectOptions.style.display = 'flex';
-        effectNameSelect.style.display = 'none'; // Hide effect dropdown
-        
-        // Remove Duration Input entirely for indefinite run
-        durationLabel.style.display = 'none';
-        durationInput.style.display = 'none';
+        effectNameSelect.style.display = 'block'; // Show effect dropdown
     }
 }
 
@@ -156,9 +150,6 @@ async function handleAddSchedule() {
     } else if (action === 'effect') {
         data.effect = document.getElementById('schedule-effect-name').value;
         data.duration = document.getElementById('schedule-duration').value;
-    } else if (action === 'sync') {
-        // --- CRITICAL FIX: DO NOT SEND DURATION ---
-        data.effect = 'sync';
     }
 
     const result = await apiCall('/api/schedule/add', data, 'POST', 'Error adding schedule');
@@ -278,9 +269,6 @@ async function setColor(color, brightness = 100) {
         value: color,
         brightness: parseInt(brightness)
     }, 'POST', 'Error setting color');
-    
-    // The flag was set by the 'input' handler and will be reset by updateStatus().
-    // We do nothing else here.
 }
 
 async function runEffect(effectName) {
@@ -319,7 +307,7 @@ async function fetchEffects() {
 
 
 async function updateStatus() {
-    // const now = Date.now();
+    const now = Date.now();
     try {
         const response = await fetch(`${API_BASE}/api/status`);
         const data = await response.json();
@@ -328,8 +316,8 @@ async function updateStatus() {
             const dps = data.status;
             
             // --- COLOR PICKER INITIALIZATION/UPDATE ---
-            // Only update if the lock time has expired
-            if (now >= colorInputLockUntil) { 
+            // Load initial color once on boot, then only update if not locked
+            if (!initialColorLoaded || now >= colorInputLockUntil) { 
                 const rawColor = dps['24']; // DPS 24 holds the raw HSB/HSV string
                 const hexColor = tuyaHsvToHex(rawColor);
                 
@@ -341,12 +329,20 @@ async function updateStatus() {
                         colorPicker.value = hexColor;
                     }
                 }
+                
+                // Mark initial color as loaded after first successful update
+                if (!initialColorLoaded) {
+                    initialColorLoaded = true;
+                }
             }
             // ----------------------------------------
 
-            // Check DPS 21 (Mode) to determine sync state
+            // Check DPS 21 (Mode) and DPS 27 (Music Toggle) to determine sync state
             const currentMode = dps['21'];
-            isSyncActive = currentMode === 'music';
+            const musicToggle = dps['27'];
+            
+            // Sync is active if mode is 'music' AND toggle is true
+            isSyncActive = (currentMode === 'music' && musicToggle === true);
             
             // Update UI based on the device's actual mode
             updateSyncButtonUI(isSyncActive);
@@ -355,6 +351,7 @@ async function updateStatus() {
             document.getElementById('status').innerHTML = `
                 <strong>Power:</strong> ${dps['20'] ? 'ON' : 'OFF'} (DPS 20)<br>
                 <strong>Mode:</strong> ${currentMode} (DPS 21)<br>
+                <strong>Music Toggle:</strong> ${musicToggle} (DPS 27)<br>
                 <strong>Raw DPS:</strong> ${JSON.stringify(dps, null, 2).substring(0, 150)}...
             `;
 
@@ -368,8 +365,6 @@ async function updateStatus() {
  * Handles the change event for the Sync checkbox.
  */
 function handleSyncToggle(event) {
-    // Set the flag to true to ensure the color picker doesn't change
-    ignoreNextColorUpdate = true;
     const targetState = event.target.checked ? 'on' : 'off';
     syncToggle(targetState);
 }

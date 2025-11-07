@@ -80,7 +80,7 @@ class LampScheduler:
         print(f"✅ Scheduled: Turn OFF at {target_time.strftime('%Y-%m-%d %H:%M:%S')}")
         return schedule
 
-    def schedule_sync(self, target_time, duration=3600): # Default 1 hour duration
+    def schedule_sync(self, target_time):
         """Schedule the 'sync' effect to run at a specific time"""
         if isinstance(target_time, str):
             target_time = self._parse_time_string(target_time)
@@ -89,11 +89,10 @@ class LampScheduler:
             'time': target_time,
             'action': 'effect',
             'effect': 'sync', # Fixed effect name
-            'duration': duration
         }
         self.schedules.append(schedule)
         self._save_schedules()
-        print(f"✅ Scheduled: Stream SYNC at {target_time.strftime('%Y-%m-%d %H:%M:%S')} for {duration}s")
+        print(f"✅ Scheduled: Stream SYNC at {target_time.strftime('%Y-%m-%d %H:%M:%S')}")
         return schedule
     
     def schedule_effect(self, target_time, effect_name, duration=30):
@@ -223,9 +222,10 @@ class LampScheduler:
                                 # If the action is sync AND duration is None/0 (meaning indefinitely scheduled)
                                 if effect == 'sync' and not duration:
                                     # Execute the ON sequence for Stream Sync (duration=None runs indefinitely)
-                                    all_modes[effect](self.lamp, duration=None)
+                                    all_modes[effect](self.lamp)
                                     print(f"   ✅ Running {effect.upper()} effect INDEFINITELY.")
-                                    remove_schedule = False # Keep the schedule active (remove later if necessary)
+                                    # Schedule should still be removed after execution - it's a one-time trigger
+                                    remove_schedule = True
                                 
                                 else:
                                     # Execute standard timed effect (including timed sync from CLI)
@@ -303,7 +303,7 @@ def schedule_mode(lamp):
     print("\nCommands:")
     print("  on <time> [color]     - Schedule turn on")
     print("  off <time>            - Schedule turn off")
-    print("  sync <time> [duration] - Schedule Stream Sync (turns ON lamp)")
+    print("  sync <time> - Schedule Stream Sync (turns ON lamp)")
     print("  effect <time> <name>  - Schedule other effect")
     print("  list                  - Show all schedules")
     print("  remove <index>        - Remove schedule by index (1-based)")
@@ -347,7 +347,7 @@ def schedule_mode(lamp):
                     continue
                 time_str = cmd[1] if len(cmd) == 2 else f"{cmd[1]} {cmd[2]}"
                 duration = int(cmd[-1]) if len(cmd) > 2 and cmd[-1].isdigit() else 3600
-                scheduler.schedule_sync(time_str, duration)
+                scheduler.schedule_sync(time_str)
             
             elif cmd[0] == 'effect':
                 if len(cmd) < 3:
