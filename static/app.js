@@ -4,10 +4,14 @@ const API_BASE = '';
 // Global state to track sync mode status
 let isSyncActive = false;
 
+// NEW: Flag to temporarily ignore status updates to the color picker
+let ignoreNextColorUpdate = false; 
+
 // --- Helper Functions ---
 
 /**
  * Decodes the raw Tuya HSB/HSV string (HHHHSSSSVVVV) into a standard HEX color string.
+ * (Omitted full function for brevity, assumed functional from previous step)
  */
 function tuyaHsvToHex(hsvString) {
     if (!hsvString || hsvString.length < 12) return null;
@@ -56,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-set-color').addEventListener('click', () => {
         const color = document.getElementById('color-picker').value;
         const brightness = document.getElementById('brightness-slider').value;
+        // Set the flag *before* sending the command
+        ignoreNextColorUpdate = true; 
         setColor(color, brightness);
     });
     document.getElementById('brightness-slider').addEventListener('input', (e) => {
@@ -63,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.querySelectorAll('.color-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+            // Set the flag *before* sending the command
+            ignoreNextColorUpdate = true;
             document.getElementById('color-picker').value = btn.dataset.color;
             const brightness = document.getElementById('brightness-slider').value;
             setColor(btn.dataset.color, brightness);
@@ -78,13 +86,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial setup
     fetchEffects();
-    fetchSchedules(); // Fetch initial schedules
+    fetchSchedules(); 
     updateStatus();
     setInterval(updateStatus, 5000); // Poll status every 5 seconds
 });
 
 
-// --- SCHEDULING LOGIC ---
+// --- SCHEDULING LOGIC (Omitted for brevity) ---
 
 function updateScheduleForm() {
     const action = document.getElementById('schedule-action').value;
@@ -100,7 +108,6 @@ function updateScheduleForm() {
         colorOptions.style.display = 'flex';
     } else if (action === 'effect' || action === 'sync') {
         effectOptions.style.display = 'flex';
-        // Hide effect name selector if action is 'sync'
         effectNameSelect.style.display = (action === 'effect' ? 'block' : 'none');
     }
 }
@@ -114,9 +121,7 @@ async function handleAddSchedule() {
         return;
     }
 
-    // Convert datetime-local format (YYYY-MM-DDTHH:MM) to YYYY-MM-DD HH:MM
     const time_str = timeInput.replace('T', ' ');
-
     let data = { action: action, time: time_str };
 
     if (action === 'on') {
@@ -127,14 +132,13 @@ async function handleAddSchedule() {
         data.duration = document.getElementById('schedule-duration').value;
     } else if (action === 'sync') {
         data.duration = document.getElementById('schedule-duration').value;
-        data.effect = 'sync'; // Force effect name for API consistency
+        data.effect = 'sync';
     }
 
     const result = await apiCall('/api/schedule/add', data, 'POST', 'Error adding schedule');
     if (result && result.success) {
         alert("Schedule added successfully!");
         fetchSchedules();
-        // Optional: clear form inputs
     }
 }
 
@@ -243,11 +247,28 @@ async function setPower(state) {
 }
 
 async function setColor(color, brightness = 100) {
-    await apiCall(`${API_BASE}/api/color`, {
+    const result = await apiCall(`${API_BASE}/api/color`, {
         type: 'hex',
         value: color,
         brightness: parseInt(brightness)
     }, 'POST', 'Error setting color');
+    
+    // Check if the command was successful before setting the flag to true
+    if (result && result.success) {
+        // Since the command was sent successfully, we expect the UI to reflect
+        // the color the user chose, even if the device hasn't responded yet.
+        // The flag will be reset in updateStatus().
+    } else {
+        // If the command failed, allow the next status update to overwrite
+        ignoreNextColorUpdate = false; 
+    }
+}
+
+async function runEffect(effectName) {
+    await apiCall(`${API_BASE}/api/effect`, {
+        name: effectName,
+        duration: 30
+    }, 'POST', 'Error running effect');
 }
 
 async function fetchEffects() {
@@ -286,16 +307,24 @@ async function updateStatus() {
         if (data.success && data.status) {
             const dps = data.status;
             
-            // COLOR PICKER INITIALIZATION/UPDATE
-            const rawColor = dps['24']; // DPS 24 holds the raw HSB/HSV string
-            const hexColor = tuyaHsvToHex(rawColor);
-            
-            if (hexColor) {
-                const colorPicker = document.getElementById('color-picker');
-                if (colorPicker.value.toUpperCase() !== hexColor.toUpperCase()) {
-                    colorPicker.value = hexColor;
+            // --- COLOR PICKER INITIALIZATION/UPDATE ---
+            if (!ignoreNextColorUpdate) {
+                const rawColor = dps['24']; // DPS 24 holds the raw HSB/HSV string
+                const hexColor = tuyaHsvToHex(rawColor);
+                
+                if (hexColor) {
+                    const colorPicker = document.getElementById('color-picker');
+                    
+                    // Only update the picker if the color doesn't match the current status
+                    if (colorPicker.value.toUpperCase() !== hexColor.toUpperCase()) {
+                        colorPicker.value = hexColor;
+                    }
                 }
+            } else {
+                // Reset the flag immediately after the update loop starts running
+                ignoreNextColorUpdate = false;
             }
+            // ----------------------------------------
 
             // Check DPS 21 (Mode) to determine sync state
             const currentMode = dps['21'];
@@ -321,8 +350,32 @@ async function updateStatus() {
  * Handles the change event for the Sync checkbox.
  */
 function handleSyncToggle(event) {
+    // Set the flag to true to ensure the color picker doesn't change
+    ignoreNextColorUpdate = true;
     const targetState = event.target.checked ? 'on' : 'off';
     syncToggle(targetState);
+}
+
+/**
+ * API call to toggle the Music Sync state (DPS 21/25/27 sequence).
+ */
+async function syncToggle(state) {
+    try {
+        const response = await fetch(`${API_BASE}/api/sync_toggle`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ state })
+        });
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Error toggling sync: ' + data.error);
+            updateStatus(); 
+        }
+    } catch (error) {
+        alert('Connection error during sync toggle: ' + error);
+        updateStatus();
+    }
 }
 
 /**
@@ -347,6 +400,6 @@ function updateSyncButtonUI(isActive) {
 
 
 // Initialize
-loadEffects();
+fetchEffects();
 updateStatus();
 setInterval(updateStatus, 5000); // Update status every 5 seconds
