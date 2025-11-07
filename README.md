@@ -1,13 +1,13 @@
-# 🔮 Neuro-sama Lava Lamp Controller
-
 > [!IMPORTANT]
 > Home Assistant (HA) Integration Available!
 > 
 > You can now control your Neuro Lamp directly from Home Assistant. The > community-supported integration provides seamless control and state monitoring.
 > 
 > You can find the repository and installation instructions here:
-> * [IceBotYT/ha-neuro-lamp]https://github.com/IceBotYT/ha-neuro-lamp
+> * [IceBotYT/ha-neuro-lamp](https://github.com/IceBotYT/ha-neuro-lamp)
 
+
+# 🔮 Neuro-sama Lava Lamp Controller
 
 A comprehensive Python-based controller for Tuya-compatible smart lamps, originally developed for Neuro-sama's lava lamp. This project provides both CLI and web-based interfaces for controlling color, scheduling effects, and monitoring lamp activity.
 
