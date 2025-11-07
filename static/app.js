@@ -67,8 +67,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const color = document.getElementById('color-picker').value;
         const brightness = document.getElementById('brightness-slider').value;
         // Since the user is explicitly setting, we keep the lock active
-        colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
+        ignoreNextColorUpdate = true;
         setColor(color, brightness);
+    });
+    document.getElementById('brightness-slider').addEventListener('input', (e) => {
+        document.getElementById('brightness-value').textContent = e.target.value;
+    });
+    document.querySelectorAll('.color-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Set the flag *before* sending the command
+            ignoreNextColorUpdate = true;
+            document.getElementById('color-picker').value = btn.dataset.color;
+            const brightness = document.getElementById('brightness-slider').value;
+            setColor(btn.dataset.color, brightness);
+        });
     });
 
     // Sync Toggle
@@ -86,23 +98,41 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- SCHEDULING LOGIC (Omitted for brevity) ---
+// --- SCHEDULING LOGIC  ---
 
 function updateScheduleForm() {
     const action = document.getElementById('schedule-action').value;
     const colorOptions = document.querySelector('.schedule-on-options');
     const effectOptions = document.querySelector('.schedule-effect-options');
     const effectNameSelect = document.getElementById('schedule-effect-name');
+    
+    // NEW: Duration input elements
+    const durationLabel = document.querySelector('label[for="schedule-duration"]');
+    const durationInput = document.getElementById('schedule-duration');
+
 
     // Reset visibility
     colorOptions.style.display = 'none';
     effectOptions.style.display = 'none';
 
+    // Show duration by default, hide it specifically for sync/off
+    durationLabel.style.display = 'block';
+    durationInput.style.display = 'block';
+
+
     if (action === 'on') {
         colorOptions.style.display = 'flex';
-    } else if (action === 'effect' || action === 'sync') {
+    } else if (action === 'effect') {
         effectOptions.style.display = 'flex';
-        effectNameSelect.style.display = (action === 'effect' ? 'block' : 'none');
+        effectNameSelect.style.display = 'block'; // Show effect dropdown for generic effects
+    } else if (action === 'sync') {
+        // --- CRITICAL CHANGE FOR SYNC ---
+        effectOptions.style.display = 'flex';
+        effectNameSelect.style.display = 'none'; // Hide effect dropdown
+        
+        // Remove Duration Input entirely for indefinite run
+        durationLabel.style.display = 'none';
+        durationInput.style.display = 'none';
     }
 }
 
@@ -121,11 +151,13 @@ async function handleAddSchedule() {
     if (action === 'on') {
         data.color = document.getElementById('schedule-color').value;
         data.brightness = document.getElementById('schedule-brightness').value;
+    } else if (action === 'off') {
+        // No extra data needed
     } else if (action === 'effect') {
         data.effect = document.getElementById('schedule-effect-name').value;
         data.duration = document.getElementById('schedule-duration').value;
     } else if (action === 'sync') {
-        data.duration = document.getElementById('schedule-duration').value;
+        // --- CRITICAL FIX: DO NOT SEND DURATION ---
         data.effect = 'sync';
     }
 
@@ -287,7 +319,7 @@ async function fetchEffects() {
 
 
 async function updateStatus() {
-    const now = Date.now();
+    // const now = Date.now();
     try {
         const response = await fetch(`${API_BASE}/api/status`);
         const data = await response.json();

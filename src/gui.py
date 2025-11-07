@@ -140,7 +140,7 @@ def sync_toggle():
         def run_sync_toggle():
             if state == 'on':
                 # Runs the full 3-part sequence (Mode -> Data -> Toggle ON). Duration is None for indefinite run.
-                all_modes['sync'](lamp_controller, duration=None) 
+                all_modes['sync'](lamp_controller) 
             else:
                 # Cleanup Sequence (Toggle OFF -> Return to Colour Mode)
                 lamp_controller.set_music_toggle(False)

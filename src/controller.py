@@ -155,7 +155,7 @@ class LavaLampController:
     def get_status(self) -> dict:
         """
         Fetches and returns the current lamp status as a dictionary.
-        NOTE: Returns the raw DPS dictionary for deep analysis.
+        NOTE: Returns the raw DPS dictionary for deep .
         """
         if self._device is None:
             # Return simulation status

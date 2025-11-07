@@ -194,6 +194,9 @@ class LampScheduler:
                 if now >= schedule['time'] and now < schedule['time'] + timedelta(seconds=60): 
                     print(f"\n⏰ Executing scheduled action at {now.strftime('%H:%M:%S')}")
                     
+                    # Assume we should remove the schedule unless it is an indefinite effect
+                    remove_schedule = True
+                    
                     try:
                         # 1. Guarantee lamp is ON before any action (except off)
                         if schedule['action'] != 'off':
@@ -211,11 +214,23 @@ class LampScheduler:
                         
                         elif schedule['action'] == 'effect':
                             effect = schedule['effect']
-                            duration = schedule['duration']
+                            # Use .get() to safely check for duration, defaulting to a non-zero value if missing
+                            duration = schedule.get('duration') 
                             
                             if effect in all_modes:
-                                all_modes[effect](self.lamp, duration)
-                                print(f"   ✅ Running {effect.upper()} effect for {duration}s")
+                                
+                                # --- NEW LOGIC FOR INDEFINITE SYNC ---
+                                # If the action is sync AND duration is None/0 (meaning indefinitely scheduled)
+                                if effect == 'sync' and not duration:
+                                    # Execute the ON sequence for Stream Sync (duration=None runs indefinitely)
+                                    all_modes[effect](self.lamp, duration=None)
+                                    print(f"   ✅ Running {effect.upper()} effect INDEFINITELY.")
+                                    remove_schedule = False # Keep the schedule active (remove later if necessary)
+                                
+                                else:
+                                    # Execute standard timed effect (including timed sync from CLI)
+                                    all_modes[effect](self.lamp, duration)
+                                    print(f"   ✅ Running {effect.upper()} effect for {duration}s")
                             else:
                                 print(f"   ❌ Error: Effect '{effect}' not found in modes.")
                     
@@ -223,8 +238,9 @@ class LampScheduler:
                         print(f"   ❌ Error executing schedule: {e}")
                     
                     # 3. Remove completed schedule
-                    self.schedules.remove(schedule)
-                    self._save_schedules() 
+                    if remove_schedule:
+                        self.schedules.remove(schedule)
+                        self._save_schedules()
             
             time.sleep(1)
     
