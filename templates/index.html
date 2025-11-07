@@ -6,7 +6,7 @@
     <title>Neuro Lava Lamp Controller</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        /* CSS for the custom toggle switch */
+        /* BASE CSS STYLES (Retained from previous step) */
         .toggle-section {
             display: flex;
             align-items: center;
@@ -53,7 +53,6 @@
             left: calc(100% - 2px);
             transform: translateX(-100%);
         }
-        /* Scheduling specific styles */
         .schedule-form label, .schedule-form input, .schedule-form select {
             margin-right: 10px;
             margin-bottom: 5px;
@@ -79,6 +78,62 @@
         }
         .schedule-table th {
             background-color: #f4f4f4;
+        }
+        
+        /* --- MOBILE/RESPONSIVE SCHEDULER FIXES --- */
+
+        /* Force input groups to stack vertically on small screens */
+        @media (max-width: 600px) {
+            .schedule-form .input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .schedule-form label, .schedule-form input, .schedule-form select, .schedule-form button {
+                width: 100%; /* Full width for better tapping */
+                margin-right: 0;
+                margin-bottom: 10px;
+                box-sizing: border-box; /* Include padding/border in width */
+            }
+            .schedule-form input[type="color"] {
+                height: 40px; /* Make color picker easier to use */
+            }
+
+            /* --- Table Card View Fix --- */
+            .schedule-table thead {
+                display: none; /* Hide header row */
+            }
+            .schedule-table, .schedule-table tbody, .schedule-table tr, .schedule-table td {
+                display: block; /* Treat table elements like block divs */
+                width: 100%; /* Full width for block elements */
+            }
+            .schedule-table tr {
+                margin-bottom: 15px;
+                border: 1px solid #ccc;
+                background-color: #f9f9f9;
+                border-radius: 5px;
+            }
+            .schedule-table td {
+                text-align: right; /* Align value to the right */
+                padding-left: 50%; /* Make space for the label */
+                position: relative; /* Positioning for the data label */
+                border: none;
+                border-bottom: 1px dotted #ccc;
+            }
+            .schedule-table td:last-child {
+                border-bottom: 0;
+            }
+            .schedule-table td::before {
+                /* Display the header text as a label */
+                content: attr(data-label);
+                position: absolute;
+                left: 6px;
+                width: 45%; /* Space for the label */
+                padding-right: 10px;
+                white-space: nowrap;
+                text-align: left;
+                font-weight: bold;
+                color: #555;
+            }
         }
     </style>
 </head>

@@ -8,7 +8,6 @@ let isSyncActive = false;
 
 /**
  * Decodes the raw Tuya HSB/HSV string (HHHHSSSSVVVV) into a standard HEX color string.
- * (Omitted full function for brevity, assumed functional from previous step)
  */
 function tuyaHsvToHex(hsvString) {
     if (!hsvString || hsvString.length < 12) return null;
@@ -91,6 +90,7 @@ function updateScheduleForm() {
     const action = document.getElementById('schedule-action').value;
     const colorOptions = document.querySelector('.schedule-on-options');
     const effectOptions = document.querySelector('.schedule-effect-options');
+    const effectNameSelect = document.getElementById('schedule-effect-name');
 
     // Reset visibility
     colorOptions.style.display = 'none';
@@ -101,7 +101,7 @@ function updateScheduleForm() {
     } else if (action === 'effect' || action === 'sync') {
         effectOptions.style.display = 'flex';
         // Hide effect name selector if action is 'sync'
-        document.getElementById('schedule-effect-name').style.display = (action === 'effect' ? 'block' : 'none');
+        effectNameSelect.style.display = (action === 'effect' ? 'block' : 'none');
     }
 }
 
@@ -157,6 +157,9 @@ async function fetchSchedules() {
         const tbody = document.getElementById('schedules-tbody');
         tbody.innerHTML = '';
         
+        // Headers for mapping data-label attributes in the mobile view
+        const headers = ["#", "Scheduled Time", "Action", "Details", "Remove"];
+
         if (data.success && data.schedules.length > 0) {
             data.schedules.forEach((schedule, index) => {
                 const row = tbody.insertRow();
@@ -168,20 +171,34 @@ async function fetchSchedules() {
                 });
                 
                 let details = '';
+                let actionDisplay = schedule.action.toUpperCase();
+                
                 if (schedule.action === 'on') {
                     details = `${schedule.color} @ ${schedule.brightness}%`;
-                } else if (schedule.action === 'effect') {
-                    details = `${schedule.effect.toUpperCase()} (${schedule.duration}s)`;
-                } else if (schedule.action === 'sync') {
-                    details = `SYNC (${schedule.duration}s)`;
+                } else if (schedule.action === 'off') {
+                    details = "N/A";
+                } else if (schedule.action === 'effect' || schedule.action === 'sync') {
+                    actionDisplay = (schedule.effect === 'sync' ? 'SYNC' : schedule.effect).toUpperCase();
+                    details = `${schedule.duration}s`;
                 }
 
-                row.insertCell().textContent = indexCell;
-                row.insertCell().textContent = time;
-                row.insertCell().textContent = schedule.action.toUpperCase();
-                row.insertCell().textContent = details;
+                const dataArray = [
+                    indexCell,
+                    time,
+                    actionDisplay,
+                    details
+                ];
+
+                dataArray.forEach((item, cellIndex) => {
+                    const cell = row.insertCell();
+                    cell.textContent = item;
+                    // Add data-label attribute for responsive CSS
+                    cell.setAttribute('data-label', headers[cellIndex]);
+                });
                 
+                // Remove button cell
                 const removeCell = row.insertCell();
+                removeCell.setAttribute('data-label', 'Remove');
                 const btn = document.createElement('button');
                 btn.textContent = 'Remove';
                 btn.className = 'btn btn-remove';
@@ -260,60 +277,6 @@ async function fetchEffects() {
         });
 }
 
-// ... (Rest of the functions: updateStatus, updateSyncButtonUI, handleSyncToggle) ...
-
-/**
- * Handles the change event for the Sync checkbox.
- */
-function handleSyncToggle(event) {
-    const targetState = event.target.checked ? 'on' : 'off';
-    
-    // We update the device state immediately, and updateStatus() will confirm
-    // whether the device accepted the state change (i.e., if mode became 'music').
-    syncToggle(targetState);
-}
-
-/**
- * API call to toggle the Music Sync state (DPS 21/25/27 sequence).
- */
-async function syncToggle(state) {
-    try {
-        const response = await fetch(`${API_BASE}/api/sync_toggle`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ state })
-        });
-        const data = await response.json();
-        
-        if (!data.success) {
-            alert('Error toggling sync: ' + data.error);
-            updateStatus(); 
-        }
-    } catch (error) {
-        alert('Connection error during sync toggle: ' + error);
-        updateStatus();
-    }
-}
-
-/**
- * Updates the appearance of the Sync Toggle based on the active state.
- * @param {boolean} isActive - Whether the device is currently in 'music' mode.
- */
-function updateSyncButtonUI(isActive) {
-    const toggle = document.getElementById('btn-sync');
-    const statusSpan = document.getElementById('sync-status');
-    
-    // Set the checkbox checked state based on device status
-    toggle.checked = isActive;
-
-    if (isActive) {
-        statusSpan.textContent = "ACTIVE";
-        statusSpan.style.color = '#00AA00';
-    } else {
-        statusSpan.textContent = "OFF";
-        statusSpan.style.color = '#cc0000';
-    }
-}
 
 async function updateStatus() {
     try {
@@ -353,3 +316,37 @@ async function updateStatus() {
         document.getElementById('status').textContent = 'Error loading status';
     }
 }
+
+/**
+ * Handles the change event for the Sync checkbox.
+ */
+function handleSyncToggle(event) {
+    const targetState = event.target.checked ? 'on' : 'off';
+    syncToggle(targetState);
+}
+
+/**
+ * Updates the appearance of the Sync Toggle based on the active state.
+ * @param {boolean} isActive - Whether the device is currently in 'music' mode.
+ */
+function updateSyncButtonUI(isActive) {
+    const toggle = document.getElementById('btn-sync');
+    const statusSpan = document.getElementById('sync-status');
+    
+    // Set the checkbox checked state based on device status
+    toggle.checked = isActive;
+
+    if (isActive) {
+        statusSpan.textContent = "ACTIVE";
+        statusSpan.style.color = '#00AA00';
+    } else {
+        statusSpan.textContent = "OFF";
+        statusSpan.style.color = '#cc0000';
+    }
+}
+
+
+// Initialize
+loadEffects();
+updateStatus();
+setInterval(updateStatus, 5000); // Update status every 5 seconds
