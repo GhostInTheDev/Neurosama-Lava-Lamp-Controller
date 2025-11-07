@@ -1,4 +1,5 @@
 import time
+import logging # <-- REQUIRED IMPORT
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 import threading
@@ -145,6 +146,13 @@ def start_web_interface(lamp, host='127.0.0.1', port=5000):
     """Start the Flask web interface"""
     global lamp_controller
     lamp_controller = lamp
+    
+    # --- LOGGING CONFIGURATION TO SUPPRESS 200 CODES ---
+    # 1. Get the Werkzeug logger (which logs access requests)
+    log = logging.getLogger('werkzeug')
+    # 2. Set the level to ERROR or higher to hide INFO messages (the 200s)
+    log.setLevel(logging.ERROR) 
+    # ---------------------------------------------------
     
     print(f"\n🌐 Web interface starting...")
     print(f"   URL: http://{host}:{port}")
