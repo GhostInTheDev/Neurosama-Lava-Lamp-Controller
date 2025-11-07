@@ -53,6 +53,33 @@
             left: calc(100% - 2px);
             transform: translateX(-100%);
         }
+        /* Scheduling specific styles */
+        .schedule-form label, .schedule-form input, .schedule-form select {
+            margin-right: 10px;
+            margin-bottom: 5px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .schedule-form .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .schedule-table th, .schedule-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        .schedule-table th {
+            background-color: #f4f4f4;
+        }
     </style>
 </head>
 <body>
@@ -102,6 +129,60 @@
         <div id="effects-container" class="effects-grid"></div>
     </div>
     
+    <div class="section">
+        <h2>Scheduler 🕐</h2>
+        <div id="scheduler-interface">
+            <h3>Add New Schedule</h3>
+            <div class="schedule-form">
+                <div class="input-group">
+                    <label for="schedule-action">Action:</label>
+                    <select id="schedule-action">
+                        <option value="on">Turn ON</option>
+                        <option value="off">Turn OFF</option>
+                        <option value="sync">Stream Sync</option>
+                        <option value="effect">Run Effect</option>
+                    </select>
+                    
+                    <label for="schedule-time">Time:</label>
+                    <input type="datetime-local" id="schedule-time" required>
+                </div>
+
+                <div class="input-group schedule-on-options" style="display: flex;">
+                    <label for="schedule-color">Color:</label>
+                    <input type="color" id="schedule-color" value="#FFFFFF">
+                    <label for="schedule-brightness">Brightness (%):</label>
+                    <input type="number" id="schedule-brightness" value="100" min="1" max="100" style="width: 60px;">
+                </div>
+                
+                <div class="input-group schedule-effect-options" style="display: none;">
+                    <label for="schedule-effect-name">Effect:</label>
+                    <select id="schedule-effect-name"></select>
+                    <label for="schedule-duration">Duration (s):</label>
+                    <input type="number" id="schedule-duration" value="30" min="1" style="width: 60px;">
+                </div>
+
+                <button id="btn-add-schedule" class="btn">Add Schedule</button>
+            </div>
+
+            <h3 style="margin-top: 20px;">Current Schedules</h3>
+            <div id="schedules-list">
+                <table class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Scheduled Time</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                            <th>Remove</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedules-tbody">
+                        <tr><td colspan="5">No scheduled jobs.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
     <div class="section">
         <h2>Status</h2>
         <div id="status" class="status-box">Loading...</div>

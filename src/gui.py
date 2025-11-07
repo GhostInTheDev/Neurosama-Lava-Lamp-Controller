@@ -1,9 +1,15 @@
 import time
-import logging # <-- REQUIRED IMPORT
+import logging 
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 import threading
 from src.modes import all_modes
+from src.scheduler import LampScheduler # Import the scheduler class
+
+# Global instance of the scheduler
+lamp_scheduler = None
+# Global lamp controller instance
+lamp_controller = None
 
 
 app = Flask(__name__, 
@@ -11,9 +17,57 @@ app = Flask(__name__,
             static_folder='../static')
 CORS(app)
 
-# Global lamp controller instance
-lamp_controller = None
 
+# --- SCHEDULING API ROUTES ---
+
+@app.route('/api/schedule/list')
+def schedule_list():
+    """List all scheduled commands."""
+    try:
+        # Get raw list of schedules (datetimes are converted to ISO strings)
+        schedules = lamp_scheduler.get_raw_schedules()
+        return jsonify({'success': True, 'schedules': schedules})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/schedule/add', methods=['POST'])
+def schedule_add():
+    """Add a new scheduled command."""
+    try:
+        data = request.json
+        action = data['action']
+        time_str = data['time'] # Expected format: YYYY-MM-DD HH:MM
+        
+        if action == 'on':
+            color = data.get('color', '#FFFFFF')
+            brightness = int(data.get('brightness', 100))
+            lamp_scheduler.schedule_on(time_str, color, brightness)
+        elif action == 'off':
+            lamp_scheduler.schedule_off(time_str)
+        elif action == 'sync':
+            duration = int(data.get('duration', 3600))
+            lamp_scheduler.schedule_sync(time_str, duration)
+        elif action == 'effect':
+            effect_name = data['effect']
+            duration = int(data.get('duration', 30))
+            lamp_scheduler.schedule_effect(time_str, effect_name, duration)
+        else:
+            return jsonify({'success': False, 'error': 'Invalid action'}), 400
+            
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/schedule/remove/<int:index>', methods=['DELETE'])
+def schedule_remove(index):
+    """Remove a scheduled command by 1-based index."""
+    try:
+        success = lamp_scheduler.remove_schedule(index)
+        return jsonify({'success': success}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# --- Existing Routes ---
 
 @app.route('/')
 def index():
@@ -29,7 +83,7 @@ def get_status():
         return jsonify({'success': True, 'status': status})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
+# (Other API routes like power, color, sync_toggle, effect, etc., remain unchanged)
 
 @app.route('/api/power', methods=['POST'])
 def set_power():
@@ -143,16 +197,14 @@ def list_effects():
 
 
 def start_web_interface(lamp, host='127.0.0.1', port=5000):
-    """Start the Flask web interface"""
-    global lamp_controller
+    """Start the Flask web interface and scheduler."""
+    global lamp_controller, lamp_scheduler
     lamp_controller = lamp
+    lamp_scheduler = LampScheduler(lamp) # Initialize scheduler with the lamp instance
+    lamp_scheduler.start() # Start the scheduler thread
     
-    # --- LOGGING CONFIGURATION TO SUPPRESS 200 CODES ---
-    # 1. Get the Werkzeug logger (which logs access requests)
     log = logging.getLogger('werkzeug')
-    # 2. Set the level to ERROR or higher to hide INFO messages (the 200s)
     log.setLevel(logging.ERROR) 
-    # ---------------------------------------------------
     
     print(f"\n🌐 Web interface starting...")
     print(f"   URL: http://{host}:{port}")
