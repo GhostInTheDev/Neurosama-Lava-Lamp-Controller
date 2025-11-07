@@ -4,6 +4,61 @@ const API_BASE = '';
 // Global state to track sync mode status
 let isSyncActive = false;
 
+// --- Helper Functions ---
+
+/**
+ * Decodes the raw Tuya HSB/HSV string (HHHHSSSSVVVV) into a standard HEX color string.
+ * @param {string} hsvString - Raw color string from DPS 24 (e.g., '010503e803e8')
+ * @returns {string} HEX color string (e.g., '#FF0000') or null if invalid.
+ */
+function tuyaHsvToHex(hsvString) {
+    if (!hsvString || hsvString.length < 12) return null;
+
+    try {
+        // Extract H, S, V components (4 characters each, hex)
+        const h = parseInt(hsvString.substring(0, 4), 16); // 0-360
+        const s = parseInt(hsvString.substring(4, 8), 16); // 0-1000
+        const v = parseInt(hsvString.substring(8, 12), 16); // 0-1000
+
+        // Convert H (0-360), S (0-1000 -> 0-1), V (0-1000 -> 0-1) to RGB
+        const H = h / 360;
+        const S = s / 1000;
+        const V = v / 1000;
+
+        let r, g, b;
+        let i = Math.floor(H * 6);
+        let f = H * 6 - i;
+        let p = V * (1 - S);
+        let q = V * (1 - f * S);
+        let t = V * (1 - (1 - f) * S);
+
+        switch (i % 6) {
+            case 0: r = V, g = t, b = p; break;
+            case 1: r = q, g = V, b = p; break;
+            case 2: r = p, g = V, b = t; break;
+            case 3: r = p, g = q, b = V; break;
+            case 4: r = t, g = p, b = V; break;
+            case 5: r = V, g = p, b = q; break;
+        }
+
+        // Convert 0-1 scale to 0-255, format as hex
+        const toHex = (x) => {
+            const hex = Math.round(x * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+
+        const hexR = toHex(r);
+        const hexG = toHex(g);
+        const hexB = toHex(b);
+
+        return `#${hexR}${hexG}${hexB}`;
+    } catch (e) {
+        console.error("Failed to decode Tuya HSV string:", e);
+        return null;
+    }
+}
+
+
 // --- EVENT LISTENERS ---
 
 // Power controls
@@ -35,7 +90,7 @@ document.querySelectorAll('.color-btn').forEach(btn => {
     });
 });
 
-// NEW: Music Sync Toggle CHECKBOX Listener
+// Music Sync Toggle CHECKBOX Listener
 document.getElementById('btn-sync').addEventListener('change', handleSyncToggle);
 
 // --- UI UPDATE FUNCTIONS ---
@@ -120,7 +175,7 @@ async function runEffect(effectName) {
 }
 
 /**
- * NEW: API call to toggle the Music Sync state (DPS 21/25/27 sequence).
+ * API call to toggle the Music Sync state (DPS 21/25/27 sequence).
  */
 async function syncToggle(state) {
     try {
@@ -133,24 +188,19 @@ async function syncToggle(state) {
         
         if (!data.success) {
             alert('Error toggling sync: ' + data.error);
-            // Must force UI update to show the mismatch with the device state
             updateStatus(); 
         }
     } catch (error) {
         alert('Connection error during sync toggle: ' + error);
-        // Must force UI update to show the mismatch with the device state
         updateStatus();
     }
 }
 
 /**
- * NEW: Handles the change event for the Sync checkbox.
+ * Handles the change event for the Sync checkbox.
  */
 function handleSyncToggle(event) {
     const targetState = event.target.checked ? 'on' : 'off';
-    
-    // We update the device state immediately, and updateStatus() will confirm
-    // whether the device accepted the state change (i.e., if mode became 'music').
     syncToggle(targetState);
 }
 
@@ -163,6 +213,21 @@ async function updateStatus() {
         if (data.success && data.status) {
             const dps = data.status;
             
+            // --- COLOR PICKER INITIALIZATION/UPDATE ---
+            const rawColor = dps['24']; // DPS 24 holds the raw HSB/HSV string
+            const hexColor = tuyaHsvToHex(rawColor);
+            
+            if (hexColor) {
+                const colorPicker = document.getElementById('color-picker');
+                
+                // Only update the picker if it's currently showing a different color
+                // to avoid interfering with user interaction.
+                if (colorPicker.value.toUpperCase() !== hexColor.toUpperCase()) {
+                    colorPicker.value = hexColor;
+                }
+            }
+            // ----------------------------------------
+
             // Check DPS 21 (Mode) to determine sync state
             const currentMode = dps['21'];
             isSyncActive = currentMode === 'music';
