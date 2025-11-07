@@ -9,7 +9,10 @@ const COLOR_LOCK_DURATION_MS = 30000; // 30 seconds
 let colorInputLockUntil = 0;
 
 // Flag to track if initial color has been loaded
-let initialColorLoaded = false; 
+let initialColorLoaded = false;
+
+// Flag to prevent triggering the sync toggle event when updating UI programmatically
+let updatingSyncUI = false; 
 
 // --- Helper Functions ---
 
@@ -341,8 +344,13 @@ async function updateStatus() {
             const currentMode = dps['21'];
             const musicToggle = dps['27'];
             
-            // Sync is active if mode is 'music' AND toggle is true
-            isSyncActive = (currentMode === 'music' && musicToggle === true);
+            console.log('[updateStatus] DPS 21 (mode):', currentMode, 'DPS 27 (toggle):', musicToggle);
+            
+            // Sync is active if mode is 'music'
+            // Note: DPS 27 is often undefined, so we just check the mode
+            isSyncActive = (currentMode === 'music');
+            
+            console.log('[updateStatus] isSyncActive =', isSyncActive);
             
             // Update UI based on the device's actual mode
             updateSyncButtonUI(isSyncActive);
@@ -365,7 +373,16 @@ async function updateStatus() {
  * Handles the change event for the Sync checkbox.
  */
 function handleSyncToggle(event) {
+    console.log('[handleSyncToggle] Triggered, updatingSyncUI =', updatingSyncUI, 'checked =', event.target.checked);
+    
+    // Prevent triggering API call if we're just updating the UI programmatically
+    if (updatingSyncUI) {
+        console.log('[handleSyncToggle] Ignoring - updatingSyncUI is true');
+        return;
+    }
+    
     const targetState = event.target.checked ? 'on' : 'off';
+    console.log('[handleSyncToggle] Calling syncToggle with state:', targetState);
     syncToggle(targetState);
 }
 
@@ -399,8 +416,33 @@ function updateSyncButtonUI(isActive) {
     const toggle = document.getElementById('btn-sync');
     const statusSpan = document.getElementById('sync-status');
     
+    console.log('[updateSyncButtonUI] Called with isActive =', isActive, 'current checked =', toggle.checked);
+    
+    // Only update if the state is actually different
+    if (toggle.checked === isActive) {
+        console.log('[updateSyncButtonUI] Already in correct state, updating text only');
+        // Already in correct state, just update text
+        if (isActive) {
+            statusSpan.textContent = "ACTIVE";
+            statusSpan.style.color = '#00AA00';
+        } else {
+            statusSpan.textContent = "OFF";
+            statusSpan.style.color = '#cc0000';
+        }
+        return;
+    }
+    
+    console.log('[updateSyncButtonUI] Setting updatingSyncUI = true');
+    // Set flag to prevent the change event from triggering API call
+    updatingSyncUI = true;
+    
+    console.log('[updateSyncButtonUI] Setting toggle.checked =', isActive);
     // Set the checkbox checked state based on device status
     toggle.checked = isActive;
+    
+    console.log('[updateSyncButtonUI] Setting updatingSyncUI = false');
+    // Clear flag immediately - the event is synchronous
+    updatingSyncUI = false;
 
     if (isActive) {
         statusSpan.textContent = "ACTIVE";
