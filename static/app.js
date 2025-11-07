@@ -4,12 +4,14 @@ const API_BASE = '';
 // Global state to track sync mode status
 let isSyncActive = false;
 
-// NEW: Timestamp (milliseconds) until the color picker should ignore status updates.
-let colorInputLockUntil = 0; 
-const COLOR_LOCK_DURATION_MS = 30000; // 30 seconds
+// NEW: Flag to temporarily ignore status updates to the color picker
+let ignoreNextColorUpdate = false; 
 
 // --- Helper Functions ---
-// (tuyaHsvToHex function omitted for brevity, assumed unchanged)
+
+/**
+ * Decodes the raw Tuya HSB/HSV string (HHHHSSSSVVVV) into a standard HEX color string.
+ */
 function tuyaHsvToHex(hsvString) {
     if (!hsvString || hsvString.length < 12) return null;
     try {
@@ -67,20 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Since the user is explicitly setting, we keep the lock active
         colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
         setColor(color, brightness);
-    });
-    // ------------------------------------
-    
-    document.getElementById('brightness-slider').addEventListener('input', (e) => {
-        document.getElementById('brightness-value').textContent = e.target.value;
-    });
-    document.querySelectorAll('.color-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Lock and send
-            colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
-            document.getElementById('color-picker').value = btn.dataset.color;
-            const brightness = document.getElementById('brightness-slider').value;
-            setColor(btn.dataset.color, brightness);
-        });
     });
 
     // Sync Toggle
@@ -348,10 +336,32 @@ async function updateStatus() {
  * Handles the change event for the Sync checkbox.
  */
 function handleSyncToggle(event) {
-    // Lock the color picker during mode switch to prevent reset
-    colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
+    // Set the flag to true to ensure the color picker doesn't change
+    ignoreNextColorUpdate = true;
     const targetState = event.target.checked ? 'on' : 'off';
     syncToggle(targetState);
+}
+
+/**
+ * API call to toggle the Music Sync state (DPS 21/25/27 sequence).
+ */
+async function syncToggle(state) {
+    try {
+        const response = await fetch(`${API_BASE}/api/sync_toggle`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ state })
+        });
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Error toggling sync: ' + data.error);
+            updateStatus(); 
+        }
+    } catch (error) {
+        alert('Connection error during sync toggle: ' + error);
+        updateStatus();
+    }
 }
 
 /**
