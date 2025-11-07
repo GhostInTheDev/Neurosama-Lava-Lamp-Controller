@@ -10,10 +10,10 @@ def interactive_mode(lamp):
     print("="*60)
     print("\nCommands:")
     print("  hex <color>        - Set color by hex (e.g., hex #FF0000)")
-    print("  rgb <r> <g> <b>    - Set color by RGB (e.g., rgb 255 0 0)")
-    print("  hsv <h> <s> <v>    - Set color by HSV (e.g., hsv 0 1000 1000)")
+    # ... (other existing commands) ...
     print("  on                 - Turn lamp on")
     print("  off                - Turn lamp off")
+    print("  sync               - Activate Music/Stream Sync Mode 🎧") # ADDED
     print("  status             - Show current status")
     print("  demo               - Run color demos")
     print("  schedule           - Enter scheduling mode")
@@ -28,6 +28,9 @@ def interactive_mode(lamp):
             
             if cmd[0] == 'quit' or cmd[0] == 'exit':
                 break
+            # ... (existing commands) ...
+            elif cmd[0] == 'sync': # ADDED LOGIC
+                all_modes['sync'](lamp)
             elif cmd[0] == 'on':
                 lamp.turn_on()
             elif cmd[0] == 'off':
@@ -44,6 +47,7 @@ def interactive_mode(lamp):
             elif cmd[0] == 'schedule':
                 schedule_mode(lamp)
             elif cmd[0] == 'demo':
+                # ... (existing demo logic) ...
                 print("\nWhich demo?")
                 mode_list = list(all_modes.keys())
                 for i, mode_name in enumerate(mode_list, 1):

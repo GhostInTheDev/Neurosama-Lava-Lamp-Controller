@@ -1,1 +1,5 @@
 src/config.py
+scene_encoder.py
+scene_testing.py
+scene_reverse_engineer.py
+stream_sniffer.py

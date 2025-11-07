@@ -5,7 +5,9 @@ from src.utils import hex_to_hsv, hsv_to_tuya, rgb_to_tuya_hsv, InvalidHexError,
 # --- Tuya Data Point (DP) IDs (Based on your working script: 20=switch, 21=mode) ---
 DP_ID_SWITCH = 20        # Boolean: True (on), False (off)
 DP_ID_MODE = 21          # String: 'colour', 'white', 'scene', 'music'
-DP_ID_COLOR = 24        # String: HSB/HSV color data string (e.g., '008503e803e8')
+DP_ID_COLOR = 24         # String: HSB/HSV color data string (e.g., '008503e803e8')
+DP_ID_SCENE = 25         # String: Scene data
+DP_ID_MUSIC_TOGGLE = 27  # NEW: Hypothesized toggle for Music/Sync mode activation
 # ---------------------------------
 
 
@@ -25,44 +27,36 @@ class LavaLampController:
             local_key=local_key,
             version=version
         )
-        self._device.set_socketTimeout(5) # Set timeout from your working script
+        self._device.set_socketTimeout(5)
         self._is_connected = False
         self._last_status = {}
         
-        # Disable Tuya debug logs unless needed
         tinytuya.set_debug(False)
         
         try:
-            # Check status to ensure the connection is live and get initial state
             self._last_status = self._device.status()
             if self._last_status is None:
                  raise ConnectionError("Failed to get initial status from device.")
             
             self._is_connected = True
-            is_on = self._last_status.get('dps', {}).get(DP_ID_SWITCH)
+            is_on = self._last_status.get('dps', {}).get(str(DP_ID_SWITCH))
             print(f"✅ Connection established. Lamp is currently {'ON' if is_on else 'OFF'}")
             
         except Exception as e:
             print(f"⚠️ Warning: Could not connect to Tuya device. Running in simulation mode. Error: {e}")
             self._device = None
-            # Initialize simulation status to provide default values
-            self._last_status = {
-                DP_ID_SWITCH: False,
-                DP_ID_MODE: 'colour',
-                DP_ID_COLOR: '000003e803e8' # Default white 
-            } 
+            self._last_status = {'dps': {str(DP_ID_SWITCH): False, str(DP_ID_MODE): 'colour', str(DP_ID_COLOR): '000003e803e8'}} 
 
         
     def _set_dp_value(self, dp_id: int, value):
         """Helper to send a command to the device."""
         if self._device is None:
-            # Simulation mode: update internal status for reporting
-            self._last_status.setdefault('dps', {})[dp_id] = value
+            self._last_status.setdefault('dps', {})[str(dp_id)] = value
             return 
         
         try:
             self._device.set_value(dp_id, value, nowait=True)
-            time.sleep(0.3) # Wait required by your working script for stability
+            time.sleep(0.3)
         except Exception as e:
             print(f"❌ Failed to send DP {dp_id} command: {e}")
 
@@ -80,6 +74,30 @@ class LavaLampController:
         print("🛑 Lamp turned OFF")
 
     
+    def set_mode(self, mode: str):
+        """Sets the work mode (DPS 21)."""
+        valid_modes = ['colour', 'white', 'scene', 'music']
+        if mode not in valid_modes:
+            print(f"❌ Invalid mode '{mode}'. Must be one of: {', '.join(valid_modes)}.")
+            return
+
+        self._set_dp_value(DP_ID_MODE, mode)
+        print(f"🎭 Lamp mode set to {mode.upper()}")
+    
+    
+    def set_music_toggle(self, state: bool):
+        """NEW: Toggles the music/sync start flag (DPS 27)."""
+        self._set_dp_value(DP_ID_MUSIC_TOGGLE, state)
+        print(f"⏯️  Sent DPS {DP_ID_MUSIC_TOGGLE} (Music Toggle): {state}")
+
+
+    def set_scene_raw(self, scene_hex: str):
+        """Sends raw scene data string to DPS 25."""
+        self._set_dp_value(DP_ID_SCENE, scene_hex)
+        print(f"🖼️ Raw scene data sent to DPS {DP_ID_SCENE}.")
+
+    # (Other methods like set_color_hex, get_status, etc., are omitted for brevity but remain unchanged)
+
     def set_color_hex(self, hex_color: str, brightness: int = 100):
         """Sets color using HEX code (e.g., #FF0000)."""
         try:
@@ -94,7 +112,6 @@ class LavaLampController:
             
         except InvalidHexError as e:
             print(f"❌ Error setting color: {e}")
-
 
     def set_color_rgb(self, r: int, g: int, b: int, brightness: int = 100):
         """Sets color using RGB values (0-255)."""
@@ -123,7 +140,7 @@ class LavaLampController:
             tuya_color_string = hsv_to_tuya(h, s, v)
             
             # Ensure mode is 'colour' before sending color data
-            self._set_dp_value(DP_ID_MODE, 'colour')
+            self.set_mode('colour') # Use the new method
             
             # Send the color data on DP 24
             self._set_dp_value(DP_ID_COLOR, tuya_color_string)
@@ -135,50 +152,27 @@ class LavaLampController:
             print(f"❌ Failed to send HSV command: {e}")
 
 
-    def get_status(self) -> str:
+    def get_status(self) -> dict:
         """
-        Fetches and formats the current lamp status for display in the CLI.
+        Fetches and returns the current lamp status as a dictionary.
+        NOTE: Returns the raw DPS dictionary for deep analysis.
         """
         if self._device is None:
-            status_text = "Status: OFFLINE (Running in simulation mode)\n"
-            status_text += f"Last Known State (DPS): {self._last_status.get('dps', {})}"
-            return status_text
-
+            # Return simulation status
+            return self._last_status.get('dps', {})
+        
         try:
             # Refresh status from device
             current_status = self._device.status()
             if not current_status:
-                return "Status: Error retrieving status (Device Unreachable)."
+                return {}
             
             dps_raw = current_status.get('dps', {})
             
-            # CRITICAL FIX: Convert raw DP keys (which are often strings like '20') to integers
-            dps = {int(k): v for k, v in dps_raw.items() if isinstance(k, str) and k.isdigit()}
-            self._last_status = dps # Store the cleaned, integer-keyed dictionary
+            # Store the raw dictionary
+            self._last_status = dps_raw 
             
-            is_on = dps.get(DP_ID_SWITCH, False)
-            mode = dps.get(DP_ID_MODE, 'unknown')
-            color_str = dps.get(DP_ID_COLOR, 'N/A')
+            return dps_raw
             
-            # Decode the HSB string if available (format is hex hhhhssssvvvv)
-            h, s, v = "N/A", "N/A", "N/A"
-            hex_display = "N/A"
-            if len(color_str) == 12:
-                try:
-                    # Parse the 4-char hex strings
-                    h = int(color_str[0:4], 16)
-                    s = int(color_str[4:8], 16)
-                    v = int(color_str[8:12], 16)
-                    hex_display = _hsv_to_hex_display(h, s, v)
-                except ValueError:
-                    pass
-            
-            output = f"Status: {'ON' if is_on else 'OFF'}\n"
-            output += f"Mode: {mode.upper()}\n"
-            output += f"Color (HSV/Tuya): H={h}, S={s}, V={v} (V=Brightness)\n"
-            output += f"Raw DPS: {dps}"
-            
-            return output
-            
-        except Exception as e:
-            return f"Status: Error fetching device data. {e}"
+        except Exception:
+            return {}

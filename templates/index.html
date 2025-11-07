@@ -5,51 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neuro Lava Lamp Controller</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* CSS for the custom toggle switch */
+        .toggle-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .toggle-switch-container {
+            display: flex;
+            align-items: center;
+        }
+        .toggle-checkbox {
+            height: 0;
+            width: 0;
+            visibility: hidden;
+        }
+        .toggle-label {
+            cursor: pointer;
+            text-indent: -9999px;
+            width: 50px;
+            height: 25px;
+            background: #cc0000;
+            display: block;
+            border-radius: 100px;
+            position: relative;
+            margin-right: 10px;
+            transition: background 0.3s;
+        }
+        .toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 21px;
+            height: 21px;
+            background: #fff;
+            border-radius: 90px;
+            transition: 0.3s;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background: #00AA00;
+        }
+        .toggle-checkbox:checked + .toggle-label:after {
+            left: calc(100% - 2px);
+            transform: translateX(-100%);
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🔮 Neuro Lava Lamp Controller</h1>
-        
-        <div class="section">
-            <h2>Power</h2>
-            <button id="btn-on" class="btn btn-on">Turn ON</button>
-            <button id="btn-off" class="btn btn-off">Turn OFF</button>
-        </div>
-        
-        <div class="section">
-            <h2>Color Picker</h2>
-            <input type="color" id="color-picker" value="#FF0000">
-            <button id="btn-set-color" class="btn">Set Color</button>
-            <div>
-                <label>Brightness: <span id="brightness-value">100</span>%</label>
-                <input type="range" id="brightness-slider" min="0" max="100" value="100">
-            </div>
-        </div>
-        
-        <div class="section">
-            <h2>Quick Colors</h2>
-            <div class="quick-colors">
-                <button class="color-btn" data-color="#FF0000" style="background: #FF0000">Red</button>
-                <button class="color-btn" data-color="#00FF00" style="background: #00FF00">Green</button>
-                <button class="color-btn" data-color="#0000FF" style="background: #0000FF">Blue</button>
-                <button class="color-btn" data-color="#FFFF00" style="background: #FFFF00">Yellow</button>
-                <button class="color-btn" data-color="#FF00FF" style="background: #FF00FF">Magenta</button>
-                <button class="color-btn" data-color="#00FFFF" style="background: #00FFFF">Cyan</button>
-                <button class="color-btn" data-color="#FFFFFF" style="background: #FFFFFF; color: #000;">White</button>
-            </div>
-        </div>
-        
-        <div class="section">
-            <h2>Effects</h2>
-            <div id="effects-container" class="effects-grid"></div>
-        </div>
-        
-        <div class="section">
-            <h2>Status</h2>
-            <div id="status" class="status-box">Loading...</div>
+<div class="container">
+<h1>🔮 Neuro Lava Lamp Controller</h1>
+
+    <div class="section">
+        <h2>Power</h2>
+        <button id="btn-on" class="btn btn-on">Turn ON</button>
+        <button id="btn-off" class="btn btn-off">Turn OFF</button>
+    </div>
+    
+    <div class="section">
+        <h2>Color Picker</h2>
+        <input type="color" id="color-picker" value="#FF0000">
+        <button id="btn-set-color" class="btn">Set Color</button>
+        <div>
+            <label>Brightness: <span id="brightness-value">100</span>%</label>
+            <input type="range" id="brightness-slider" min="0" max="100" value="100">
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <div class="section toggle-section">
+        <h2>Stream Sync Mode</h2>
+        <div class="toggle-switch-container">
+            <input type="checkbox" id="btn-sync" class="toggle-checkbox" />
+            <label for="btn-sync" class="toggle-label"></label>
+            <span id="sync-status" class="font-bold" style="color: #cc0000;">OFF</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Quick Colors</h2>
+        <div class="quick-colors">
+            <button class="color-btn" data-color="#FF0000" style="background: #FF0000">Red</button>
+            <button class="color-btn" data-color="#00FF00" style="background: #00FF00">Green</button>
+            <button class="color-btn" data-color="#0000FF" style="background: #0000FF">Blue</button>
+            <button class="color-btn" data-color="#FFFF00" style="background: #FFFF00">Yellow</button>
+            <button class="color-btn" data-color="#FF00FF" style="background: #FF00FF">Magenta</button>
+            <button class="color-btn" data-color="#00FFFF" style="background: #00FFFF">Cyan</button>
+            <button class="color-btn" data-color="#FFFFFF" style="background: #FFFFFF; color: #000;">White</button>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Effects</h2>
+        <div id="effects-container" class="effects-grid"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Status</h2>
+        <div id="status" class="status-box">Loading...</div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+
+
 </body>
 </html>

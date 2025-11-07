@@ -1,4 +1,4 @@
-# src/gui.py
+import time
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 import threading
@@ -73,6 +73,36 @@ def set_color():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/sync_toggle', methods=['POST'])
+def sync_toggle():
+    """
+    Starts or stops the Stream Sync mode using the 3-part sequence (ON) or cleanup (OFF).
+    """
+    try:
+        data = request.json
+        state = data.get('state') # 'on' or 'off'
+        
+        def run_sync_toggle():
+            if state == 'on':
+                # Runs the full 3-part sequence (Mode -> Data -> Toggle ON). Duration is None for indefinite run.
+                all_modes['sync'](lamp_controller, duration=None) 
+            else:
+                # Cleanup Sequence (Toggle OFF -> Return to Colour Mode)
+                lamp_controller.set_music_toggle(False)
+                time.sleep(0.5) # Give lamp time to register the toggle off
+                lamp_controller.set_mode('colour') # CRITICAL FIX: Switch out of 'music' mode
+                
+        thread = threading.Thread(target=run_sync_toggle, daemon=True)
+        thread.start()
+
+        return jsonify({'success': True, 'state': state}), 200
+
+    except KeyError:
+         return jsonify({'success': False, 'error': "Mode 'sync' is not available in src/modes.py"}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/effect', methods=['POST'])
 def run_effect():
     """Run an effect mode"""
@@ -83,6 +113,10 @@ def run_effect():
         
         if effect_name not in all_modes:
             return jsonify({'success': False, 'error': 'Unknown effect'}), 400
+        
+        # PREVENT 'sync' from being run here; it has its own toggle endpoint
+        if effect_name == 'sync':
+            return jsonify({'success': False, 'error': "Use /api/sync_toggle for sync mode"}), 400
         
         # Run effect in background thread so API returns immediately
         def run():
@@ -99,9 +133,11 @@ def run_effect():
 @app.route('/api/effects')
 def list_effects():
     """List all available effects"""
+    # Filter out 'sync' so the UI can handle it separately with the toggle
+    effects = [name for name in all_modes.keys() if name != 'sync'] 
     return jsonify({
         'success': True,
-        'effects': list(all_modes.keys())
+        'effects': effects
     })
 
 
