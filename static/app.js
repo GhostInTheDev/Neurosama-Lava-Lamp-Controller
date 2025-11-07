@@ -4,15 +4,12 @@ const API_BASE = '';
 // Global state to track sync mode status
 let isSyncActive = false;
 
-// NEW: Flag to temporarily ignore status updates to the color picker
-let ignoreNextColorUpdate = false; 
+// NEW: Timestamp (milliseconds) until the color picker should ignore status updates.
+let colorInputLockUntil = 0; 
+const COLOR_LOCK_DURATION_MS = 30000; // 30 seconds
 
 // --- Helper Functions ---
-
-/**
- * Decodes the raw Tuya HSB/HSV string (HHHHSSSSVVVV) into a standard HEX color string.
- * (Omitted full function for brevity, assumed functional from previous step)
- */
+// (tuyaHsvToHex function omitted for brevity, assumed unchanged)
 function tuyaHsvToHex(hsvString) {
     if (!hsvString || hsvString.length < 12) return null;
     try {
@@ -57,20 +54,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Standard Controls
     document.getElementById('btn-on').addEventListener('click', () => { setPower('on'); });
     document.getElementById('btn-off').addEventListener('click', () => { setPower('off'); });
+    
+    // --- CRITICAL FIX: Lock on any color input interaction ---
+    document.getElementById('color-picker').addEventListener('input', () => {
+        // Lock the color picker update for 30 seconds after user interaction begins
+        colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
+    });
+
     document.getElementById('btn-set-color').addEventListener('click', () => {
         const color = document.getElementById('color-picker').value;
         const brightness = document.getElementById('brightness-slider').value;
-        // Set the flag *before* sending the command
-        ignoreNextColorUpdate = true; 
+        // Since the user is explicitly setting, we keep the lock active
+        colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
         setColor(color, brightness);
     });
+    // ------------------------------------
+    
     document.getElementById('brightness-slider').addEventListener('input', (e) => {
         document.getElementById('brightness-value').textContent = e.target.value;
     });
     document.querySelectorAll('.color-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Set the flag *before* sending the command
-            ignoreNextColorUpdate = true;
+            // Lock and send
+            colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
             document.getElementById('color-picker').value = btn.dataset.color;
             const brightness = document.getElementById('brightness-slider').value;
             setColor(btn.dataset.color, brightness);
@@ -253,15 +259,8 @@ async function setColor(color, brightness = 100) {
         brightness: parseInt(brightness)
     }, 'POST', 'Error setting color');
     
-    // Check if the command was successful before setting the flag to true
-    if (result && result.success) {
-        // Since the command was sent successfully, we expect the UI to reflect
-        // the color the user chose, even if the device hasn't responded yet.
-        // The flag will be reset in updateStatus().
-    } else {
-        // If the command failed, allow the next status update to overwrite
-        ignoreNextColorUpdate = false; 
-    }
+    // The flag was set by the 'input' handler and will be reset by updateStatus().
+    // We do nothing else here.
 }
 
 async function runEffect(effectName) {
@@ -300,6 +299,7 @@ async function fetchEffects() {
 
 
 async function updateStatus() {
+    const now = Date.now();
     try {
         const response = await fetch(`${API_BASE}/api/status`);
         const data = await response.json();
@@ -308,7 +308,8 @@ async function updateStatus() {
             const dps = data.status;
             
             // --- COLOR PICKER INITIALIZATION/UPDATE ---
-            if (!ignoreNextColorUpdate) {
+            // Only update if the lock time has expired
+            if (now >= colorInputLockUntil) { 
                 const rawColor = dps['24']; // DPS 24 holds the raw HSB/HSV string
                 const hexColor = tuyaHsvToHex(rawColor);
                 
@@ -320,9 +321,6 @@ async function updateStatus() {
                         colorPicker.value = hexColor;
                     }
                 }
-            } else {
-                // Reset the flag immediately after the update loop starts running
-                ignoreNextColorUpdate = false;
             }
             // ----------------------------------------
 
@@ -350,32 +348,10 @@ async function updateStatus() {
  * Handles the change event for the Sync checkbox.
  */
 function handleSyncToggle(event) {
-    // Set the flag to true to ensure the color picker doesn't change
-    ignoreNextColorUpdate = true;
+    // Lock the color picker during mode switch to prevent reset
+    colorInputLockUntil = Date.now() + COLOR_LOCK_DURATION_MS;
     const targetState = event.target.checked ? 'on' : 'off';
     syncToggle(targetState);
-}
-
-/**
- * API call to toggle the Music Sync state (DPS 21/25/27 sequence).
- */
-async function syncToggle(state) {
-    try {
-        const response = await fetch(`${API_BASE}/api/sync_toggle`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ state })
-        });
-        const data = await response.json();
-        
-        if (!data.success) {
-            alert('Error toggling sync: ' + data.error);
-            updateStatus(); 
-        }
-    } catch (error) {
-        alert('Connection error during sync toggle: ' + error);
-        updateStatus();
-    }
 }
 
 /**
